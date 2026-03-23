@@ -1469,18 +1469,48 @@ canvas#sig-canvas{display:block;cursor:crosshair;touch-action:none}
 <!-- OneDrive Progress Bar -->
 <div class="od-progress" id="od-progress"></div>
 
-<!-- OneDrive Sync Bar (below topbar) -->
+<!-- GitHub Sync Bar -->
 <div class="od-bar" id="od-bar">
   <div class="od-logo">☁</div>
   <div class="od-status">
     <div class="od-dot grey" id="od-dot"></div>
-    <span class="od-status-text" id="od-status-text">OneDrive — nicht verbunden</span>
+    <span class="od-status-text" id="od-status-text">Sync — nicht eingerichtet</span>
   </div>
-  <span class="od-user" id="od-user"></span>
   <span class="od-sync-time" id="od-sync-time"></span>
-  <button class="od-btn" id="od-login-btn" onclick="odLogin()">🔵 Mit OneDrive verbinden</button>
-  <button class="od-btn" id="od-sync-btn" onclick="odSyncAll()" style="display:none">⟳ Jetzt sync</button>
-  <button class="od-btn" id="od-setup-btn" onclick="openModal('odSetupModal')" style="font-size:10px">? Einrichtung</button>
+  <button class="od-btn" id="od-sync-btn" onclick="ghSync()" style="display:none">⟳ Jetzt sync</button>
+  <button class="od-btn primary" id="od-login-btn" onclick="ghSetupOpen()" style="font-size:11px;color:var(--acc);border-color:var(--acc)">⚙ Sync einrichten</button>
+</div>
+
+<!-- GitHub Sync Setup Modal -->
+<div class="overlay" id="ghSetupModal">
+  <div class="modal" style="width:520px">
+    <div class="mh">
+      <div style="font-size:20px">☁</div>
+      <div class="mh-info">
+        <div class="mh-title">Sync einrichten</div>
+        <div class="mh-sub">Daten zwischen PC und Tablet synchronisieren</div>
+      </div>
+      <div class="mclose" onclick="closeModal('ghSetupModal')">×</div>
+    </div>
+    <div style="padding:18px;display:flex;flex-direction:column;gap:14px">
+      <div style="background:var(--bdim);border:1px solid rgba(26,63,111,.2);border-radius:var(--r);padding:12px 14px;font-size:12px;color:var(--acc);line-height:1.6">
+        💡 Füge deinen GitHub Token ein — GewPRO speichert dann alle Daten automatisch in deinem GitHub-Repository und synchronisiert zwischen PC und Tablet.
+      </div>
+      <div class="fg">
+        <label class="fl">GitHub Token (beginnt mit ghp_)</label>
+        <input class="fi" type="password" id="gh-token-inp" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="font-family:var(--fm);font-size:12px">
+      </div>
+      <div style="font-size:11px;color:var(--t3);line-height:1.6">
+        🔒 Der Token wird nur in deinem Browser gespeichert — er verlässt dein Gerät nicht. Er gibt GewPRO nur Zugriff auf dein Repository <strong>olafkettner/gewpro</strong>.
+      </div>
+      <div id="gh-test-result" style="display:none;padding:10px 12px;border-radius:var(--r2);font-size:12px"></div>
+    </div>
+    <div class="mfooter">
+      <button class="btn-s" onclick="closeModal('ghSetupModal')">Abbrechen</button>
+      <button class="btn-s" onclick="ghTestToken()">🔗 Verbindung testen</button>
+      <button class="btn-p" style="margin-left:auto" onclick="ghSaveToken()">✓ Speichern & verbinden</button>
+    </div>
+  </div>
 </div>
 
 <div class="main">
@@ -6940,8 +6970,170 @@ function saveMangel() {
   if (OD.connected) setTimeout(() => odSaveFile(OD.files.maengel, maengelData), 500);
 }
 
-// ── Init on load ──
-window.addEventListener('load', () => setTimeout(odInit, 300));
+// ── OneDrive Init (deaktiviert — GitHub Sync wird verwendet) ──
+// window.addEventListener('load', () => setTimeout(odInit, 300));
+
+// ════════════════════════════════════════════════════════
+// GITHUB SYNC — Datenspeicherung zwischen PC und Tablet
+// ════════════════════════════════════════════════════════
+
+const GH = {
+  owner: 'olafkettner',
+  repo:  'gewpro',
+  file:  'gewpro-daten.json',
+  token: '',
+  connected: false,
+  sha: null, // für Updates benötigt
+};
+
+function ghSetupOpen() {
+  const saved = localStorage.getItem('gh-token');
+  if (saved) document.getElementById('gh-token-inp').value = saved;
+  openModal('ghSetupModal');
+}
+
+async function ghTestToken() {
+  const token = document.getElementById('gh-token-inp').value.trim();
+  if (!token) { showNotification('Bitte Token eingeben', 'ora'); return; }
+  const res = document.getElementById('gh-test-result');
+  res.style.display = 'block';
+  res.style.background = 'var(--adim)';
+  res.style.color = 'var(--t2)';
+  res.textContent = '⏳ Verbindung wird getestet…';
+  try {
+    const r = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}`, {
+      headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (r.ok) {
+      res.style.background = 'var(--gdim)';
+      res.style.color = 'var(--grn)';
+      res.textContent = '✓ Verbindung erfolgreich — Repository gefunden!';
+    } else {
+      res.style.background = 'var(--rdim)';
+      res.style.color = 'var(--red)';
+      res.textContent = '✗ Fehler ' + r.status + ' — Token prüfen';
+    }
+  } catch(e) {
+    res.style.background = 'var(--rdim)';
+    res.style.color = 'var(--red)';
+    res.textContent = '✗ Keine Verbindung — Internetverbindung prüfen';
+  }
+}
+
+function ghSaveToken() {
+  const token = document.getElementById('gh-token-inp').value.trim();
+  if (!token || !token.startsWith('ghp_')) {
+    showNotification('Bitte gültigen Token eingeben (beginnt mit ghp_)', 'ora');
+    return;
+  }
+  GH.token = token;
+  GH.connected = true;
+  try { localStorage.setItem('gh-token', token); } catch(e){}
+  closeModal('ghSetupModal');
+  ghSetStatus('grn', 'Verbunden · ' + GH.owner + '/' + GH.repo);
+  document.getElementById('od-sync-btn').style.display = 'block';
+  document.getElementById('od-login-btn').textContent = '✓ Verbunden';
+  document.getElementById('od-login-btn').style.color = 'var(--grn)';
+  showNotification('Sync eingerichtet — lade Daten…');
+  ghLoad();
+}
+
+async function ghSync() {
+  if (!GH.connected || !GH.token) { showNotification('Sync nicht eingerichtet', 'ora'); return; }
+  ghSetStatus('ora', 'Speichert…');
+  document.getElementById('od-progress').style.display = 'block';
+  try {
+    const data = {
+      maengel:    maengelData,
+      projekte:   projekte,
+      firmen:     firmen,
+      abnahmen:   ubAbnahmen || [],
+      gespeichert: new Date().toISOString()
+    };
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+    const body = { message: 'GewPRO Sync ' + new Date().toLocaleString('de-DE'), content };
+    if (GH.sha) body.sha = GH.sha;
+    const r = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.file}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `token ${GH.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (r.ok) {
+      const d = await r.json();
+      GH.sha = d.content?.sha;
+      const t = new Date().toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+      ghSetStatus('grn', 'Gespeichert · ' + t);
+      document.getElementById('od-sync-time').textContent = 'Zuletzt: ' + t;
+      showNotification('✓ Daten synchronisiert');
+    } else {
+      ghSetStatus('red', 'Sync fehlgeschlagen');
+      showNotification('Sync-Fehler — bitte nochmal versuchen', 'red');
+    }
+  } catch(e) {
+    ghSetStatus('red', 'Keine Verbindung');
+  }
+  document.getElementById('od-progress').style.display = 'none';
+}
+
+async function ghLoad() {
+  if (!GH.connected || !GH.token) return;
+  ghSetStatus('ora', 'Lädt Daten…');
+  try {
+    const r = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.file}`, {
+      headers: { 'Authorization': `token ${GH.token}`, 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (r.status === 404) {
+      // Noch keine Daten — erste Sync
+      ghSetStatus('grn', 'Verbunden · Noch keine Daten');
+      showNotification('Verbunden — noch keine gespeicherten Daten');
+      return;
+    }
+    if (r.ok) {
+      const d = await r.json();
+      GH.sha = d.sha;
+      const text = decodeURIComponent(escape(atob(d.content.replace(/\n/g,''))));
+      const data = JSON.parse(text);
+      if (data.maengel?.length)   maengelData.splice(0, maengelData.length, ...data.maengel);
+      if (data.projekte?.length)  projekte.splice(0, projekte.length, ...data.projekte);
+      if (data.firmen?.length)    firmen.splice(0, firmen.length, ...data.firmen);
+      if (data.abnahmen?.length)  { if(typeof ubAbnahmen!=='undefined') ubAbnahmen.splice(0, ubAbnahmen.length, ...data.abnahmen); }
+      renderTree();
+      renderProjCards();
+      const t = new Date().toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+      ghSetStatus('grn', 'Geladen · ' + t);
+      showNotification('✓ Daten geladen');
+    }
+  } catch(e) {
+    ghSetStatus('red', 'Laden fehlgeschlagen');
+  }
+}
+
+function ghSetStatus(dot, text) {
+  const d = document.getElementById('od-dot');
+  const t = document.getElementById('od-status-text');
+  if (d) { d.className = 'od-dot ' + dot; }
+  if (t) t.textContent = text;
+}
+
+// Auto-Sync alle 2 Minuten + beim Schließen
+setInterval(() => { if (GH.connected) ghSync(); }, 120000);
+window.addEventListener('beforeunload', () => { if (GH.connected) ghSync(); });
+
+// Beim Laden: gespeicherten Token verwenden
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    const saved = localStorage.getItem('gh-token');
+    if (saved && saved.startsWith('ghp_')) {
+      GH.token = saved;
+      GH.connected = true;
+      ghSetStatus('grn', 'Verbunden · wird geladen…');
+      document.getElementById('od-sync-btn').style.display = 'block';
+      document.getElementById('od-login-btn').textContent = '✓ Verbunden';
+      document.getElementById('od-login-btn').style.color = 'var(--grn)';
+      ghLoad();
+    }
+  }, 800);
+});
 
 
 // ════════════════════════════════════════════════════════
