@@ -7028,8 +7028,8 @@ async function ghTestToken() {
 
 function ghSaveToken() {
   const token = document.getElementById('gh-token-inp').value.trim();
-  if (!token || !token.startsWith('ghp_')) {
-    showNotification('Bitte gültigen Token eingeben (beginnt mit ghp_)', 'ora');
+  if (!token || token.length < 10) {
+    showNotification('Bitte Token eingeben', 'ora');
     return;
   }
   GH.token = token;
