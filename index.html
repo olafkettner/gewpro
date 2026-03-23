@@ -3281,18 +3281,20 @@ lsLoad();
 // ── Rendern ──
 renderTree();
 
-// Sicherstellen dass pv-uebersicht sichtbar ist bevor Karten gerendert werden
-const pvUebersicht = document.getElementById('pv-uebersicht');
-if (pvUebersicht) pvUebersicht.style.display = 'block';
-renderProjCards();
-renderGewerkeP();
+// Projektkarten nach kurzem Delay rendern damit DOM bereit ist
+setTimeout(() => {
+  const pvUebersicht = document.getElementById('pv-uebersicht');
+  if (pvUebersicht) pvUebersicht.style.display = 'block';
+  renderProjCards();
+  renderGewerkeP();
+}, 200);
 
 // Pre-select first project
 setTimeout(() => {
   selectedProjId = 'P1';
   treeState['P1'] = {open:true, gebOpen:{}};
   renderTree();
-}, 100);
+}, 400);
 
 // Speichern wenn Mängel oder Projekte geändert werden
 const _origSaveMangel2 = typeof saveMangel === 'function' ? saveMangel : null;
@@ -7035,12 +7037,22 @@ function ghSaveToken() {
   GH.token = token;
   GH.connected = true;
   try { localStorage.setItem('gh-token', token); } catch(e){}
-  closeModal('ghSetupModal');
-  ghSetStatus('grn', 'Verbunden · ' + GH.owner + '/' + GH.repo);
-  document.getElementById('od-sync-btn').style.display = 'block';
-  document.getElementById('od-login-btn').textContent = '✓ Verbunden';
-  document.getElementById('od-login-btn').style.color = 'var(--grn)';
-  showNotification('Sync eingerichtet — lade Daten…');
+
+  // Modal schließen — direkt per Style
+  const modal = document.getElementById('ghSetupModal');
+  if (modal) modal.style.display = 'none';
+
+  // Status-Leiste aktualisieren
+  ghSetStatus('grn', '● Verbunden · olafkettner/gewpro');
+  const syncBtn = document.getElementById('od-sync-btn');
+  if (syncBtn) syncBtn.style.display = 'inline-block';
+  const loginBtn = document.getElementById('od-login-btn');
+  if (loginBtn) {
+    loginBtn.textContent = '✓ Verbunden';
+    loginBtn.style.color = 'var(--grn)';
+    loginBtn.style.borderColor = 'var(--grn)';
+  }
+  showNotification('✓ Sync eingerichtet — Daten werden geladen…');
   ghLoad();
 }
 
