@@ -7001,22 +7001,28 @@ async function ghTestToken() {
   res.style.color = 'var(--t2)';
   res.textContent = '⏳ Verbindung wird getestet…';
   try {
-    const r = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}`, {
-      headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+    const r = await fetch(`https://api.github.com/user`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28'
+      }
     });
     if (r.ok) {
+      const d = await r.json();
       res.style.background = 'var(--gdim)';
       res.style.color = 'var(--grn)';
-      res.textContent = '✓ Verbindung erfolgreich — Repository gefunden!';
+      res.textContent = '✓ Verbunden als ' + (d.login || d.name || 'Benutzer') + ' — Token funktioniert!';
     } else {
+      const d = await r.json().catch(()=>({}));
       res.style.background = 'var(--rdim)';
       res.style.color = 'var(--red)';
-      res.textContent = '✗ Fehler ' + r.status + ' — Token prüfen';
+      res.textContent = '✗ Fehler ' + r.status + ': ' + (d.message||'Token ungültig — bitte neuen Token erstellen');
     }
   } catch(e) {
     res.style.background = 'var(--rdim)';
     res.style.color = 'var(--red)';
-    res.textContent = '✗ Keine Verbindung — Internetverbindung prüfen';
+    res.textContent = '✗ Fehler: ' + e.message;
   }
 }
 
@@ -7055,7 +7061,7 @@ async function ghSync() {
     if (GH.sha) body.sha = GH.sha;
     const r = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.file}`, {
       method: 'PUT',
-      headers: { 'Authorization': `token ${GH.token}`, 'Content-Type': 'application/json' },
+      headers: { 'Authorization': `Bearer ${GH.token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     if (r.ok) {
@@ -7080,7 +7086,7 @@ async function ghLoad() {
   ghSetStatus('ora', 'Lädt Daten…');
   try {
     const r = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.file}`, {
-      headers: { 'Authorization': `token ${GH.token}`, 'Accept': 'application/vnd.github.v3+json' }
+      headers: { 'Authorization': `Bearer ${GH.token}`, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
     });
     if (r.status === 404) {
       // Noch keine Daten — erste Sync
