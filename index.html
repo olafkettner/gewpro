@@ -958,12 +958,14 @@ canvas#sig-canvas{display:block;cursor:crosshair;touch-action:none}
 .gew-assistant {
   position: fixed;
   bottom: 28px;
-  left: 28px;
+  right: 28px;
+  left: auto;
   z-index: 2500;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: 0;
+  touch-action: none;
 }
 
 /* Floating trigger button */
@@ -972,16 +974,19 @@ canvas#sig-canvas{display:block;cursor:crosshair;touch-action:none}
   border-radius: 50%;
   background: var(--acc);
   border: none;
-  box-shadow: 0 4px 20px rgba(155,110,232,.5);
-  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(26,63,111,.35);
+  cursor: grab;
   display: flex; align-items: center; justify-content: center;
   font-size: 22px;
-  transition: all .25s;
+  transition: box-shadow .25s, background .25s;
   position: relative;
   z-index: 2;
+  user-select: none;
+  -webkit-user-select: none;
 }
-.ga-trigger:hover { transform: scale(1.1); box-shadow: 0 6px 28px rgba(155,110,232,.7); }
-.ga-trigger.active { background: linear-gradient(135deg,#e8a020,#d4900a); box-shadow: 0 4px 20px rgba(232,160,32,.5); border-radius: 50% 50% 50% 8px; }
+.ga-trigger:active { cursor: grabbing; }
+.ga-trigger:hover { box-shadow: 0 6px 28px rgba(26,63,111,.5); }
+.ga-trigger.active { background: #e8a020; box-shadow: 0 4px 20px rgba(232,160,32,.5); border-radius: 50% 50% 50% 8px; }
 .ga-trigger-badge {
   position: absolute;
   top: -3px; right: -3px;
@@ -1001,7 +1006,8 @@ canvas#sig-canvas{display:block;cursor:crosshair;touch-action:none}
 .ga-panel {
   position: absolute;
   bottom: 62px;
-  left: 0;
+  right: 0;
+  left: auto;
   width: 340px;
   background: var(--s1);
   border: 1px solid var(--b2);
@@ -7604,6 +7610,106 @@ function switchNav(view, btn) {
     }, 100);
   }
 }
+
+
+// ════════════════════════════════════════════════════════
+// BERNI — Frei verschiebbar (Drag & Drop, Touch + Mouse)
+// ════════════════════════════════════════════════════════
+function initBerniDrag() {
+  const el = document.querySelector('.gew-assistant');
+  const trigger = document.getElementById('ga-trigger');
+  if (!el || !trigger) return;
+
+  // Load saved position
+  try {
+    const saved = JSON.parse(localStorage.getItem('gewpro-berni-pos') || '{}');
+    if (saved.right !== undefined) {
+      el.style.right  = saved.right + 'px';
+      el.style.bottom = saved.bottom + 'px';
+      el.style.left   = 'auto';
+      el.style.top    = 'auto';
+    }
+  } catch(e) {}
+
+  let dragging = false;
+  let startX, startY, startRight, startBottom;
+  let moved = false;
+
+  function getRight()  { return parseInt(el.style.right)  || 28; }
+  function getBottom() { return parseInt(el.style.bottom) || 28; }
+
+  function onStart(cx, cy) {
+    dragging = true; moved = false;
+    startX = cx; startY = cy;
+    startRight  = getRight();
+    startBottom = getBottom();
+    trigger.style.transition = 'none';
+    document.body.style.userSelect = 'none';
+  }
+
+  function onMove(cx, cy) {
+    if (!dragging) return;
+    const dx = cx - startX;
+    const dy = cy - startY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+    if (!moved) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // right = startRight - dx (moving right increases right)
+    let newRight  = Math.max(8, Math.min(vw - 60,  startRight  - dx));
+    let newBottom = Math.max(8, Math.min(vh - 60,  startBottom + dy));
+    el.style.right  = newRight  + 'px';
+    el.style.bottom = newBottom + 'px';
+    el.style.left = 'auto';
+    el.style.top  = 'auto';
+  }
+
+  function onEnd() {
+    if (!dragging) return;
+    dragging = false;
+    trigger.style.transition = '';
+    document.body.style.userSelect = '';
+    try {
+      localStorage.setItem('gewpro-berni-pos', JSON.stringify({
+        right:  getRight(),
+        bottom: getBottom()
+      }));
+    } catch(e) {}
+  }
+
+  // Mouse
+  trigger.addEventListener('mousedown', e => {
+    e.preventDefault();
+    onStart(e.clientX, e.clientY);
+  });
+  document.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
+  document.addEventListener('mouseup', e => {
+    if (moved) e.stopImmediatePropagation();
+    onEnd();
+  });
+
+  // Touch (iPad / Android)
+  trigger.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    onStart(t.clientX, t.clientY);
+  }, { passive: true });
+  trigger.addEventListener('touchmove', e => {
+    const t = e.touches[0];
+    onMove(t.clientX, t.clientY);
+  }, { passive: true });
+  trigger.addEventListener('touchend', e => {
+    onEnd();
+    if (moved) e.preventDefault();
+  });
+
+  // Nur Klick wenn NICHT gezogen
+  trigger.addEventListener('click', e => {
+    if (moved) { moved = false; e.stopImmediatePropagation(); }
+  }, true);
+}
+
+// Init nach DOM-Aufbau
+setTimeout(initBerniDrag, 500);
 
 </script>
 
