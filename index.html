@@ -7617,80 +7617,64 @@ function switchNav(view, btn) {
 // ════════════════════════════════════════════════════════
 function initBerniDrag() {
   const wrap = document.querySelector('.gew-assistant');
-  const btn  = document.getElementById('ga-trigger');
-  if (!wrap || !btn) return;
+  if (!wrap) return;
 
-  // Auf left/top umstellen für einfacheres Drag
-  const vw = window.innerWidth, vh = window.innerHeight;
-  wrap.style.right  = 'auto';
-  wrap.style.bottom = 'auto';
-  wrap.style.left   = (vw - 80) + 'px';
-  wrap.style.top    = (vh - 80) + 'px';
+  // Positionen definieren
+  const positionen = {
+    'ro': { right:'28px', bottom:'28px', left:'auto', top:'auto' },
+    'lo': { left:'28px',  bottom:'28px', right:'auto',top:'auto' },
+    'ru': { right:'28px', top:'80px',    left:'auto', bottom:'auto' },
+    'lu': { left:'28px',  top:'80px',    right:'auto',bottom:'auto' },
+  };
+
+  function setPos(key) {
+    const p = positionen[key];
+    Object.assign(wrap.style, p);
+    try { localStorage.setItem('berni-ecke', key); } catch(e){}
+    // Aktiven Button markieren
+    document.querySelectorAll('.berni-pos-btn').forEach(b => {
+      b.style.background = b.dataset.pos === key ? 'var(--acc)' : 'var(--s3)';
+      b.style.color      = b.dataset.pos === key ? '#fff'       : 'var(--t3)';
+    });
+  }
 
   // Gespeicherte Position laden
-  try {
-    const p = JSON.parse(localStorage.getItem('berni-pos') || '{}');
-    if (p.x !== undefined) {
-      wrap.style.left = Math.min(p.x, vw-60) + 'px';
-      wrap.style.top  = Math.min(p.y, vh-60) + 'px';
-    }
-  } catch(e) {}
+  const saved = localStorage.getItem('berni-ecke') || 'ro';
+  setPos(saved);
 
-  let mx0, my0, ex0, ey0, active = false, didMove = false;
-
-  function start(mx, my) {
-    const r = wrap.getBoundingClientRect();
-    mx0 = mx; my0 = my; ex0 = r.left; ey0 = r.top;
-    active = true; didMove = false;
-    wrap.style.transition = 'none';
-    document.body.style.userSelect = 'none';
+  // Positions-Buttons in den Header einfügen
+  const header = document.getElementById('ga-drag-handle');
+  if (header) {
+    const btnGroup = document.createElement('div');
+    btnGroup.style.cssText = 'display:flex;gap:3px;margin-left:auto;margin-right:6px';
+    btnGroup.title = 'Position wählen';
+    [
+      { key:'lu', label:'↖' },
+      { key:'ru', label:'↗' },
+      { key:'lo', label:'↙' },
+      { key:'ro', label:'↘' },
+    ].forEach(({key, label}) => {
+      const b = document.createElement('button');
+      b.className = 'berni-pos-btn';
+      b.dataset.pos = key;
+      b.textContent = label;
+      b.title = 'Berni hierher';
+      b.style.cssText = 'width:20px;height:20px;border-radius:4px;border:1px solid var(--b2);background:var(--s3);color:var(--t3);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;padding:0';
+      b.onclick = (e) => { e.stopPropagation(); setPos(key); };
+      btnGroup.appendChild(b);
+    });
+    // Vor dem Schließen-Button einfügen
+    const closeBtn = header.querySelector('button');
+    if (closeBtn) header.insertBefore(btnGroup, closeBtn);
+    else header.appendChild(btnGroup);
+    // Initial markieren
+    document.querySelectorAll('.berni-pos-btn').forEach(b => {
+      if (b.dataset.pos === saved) { b.style.background='var(--acc)'; b.style.color='#fff'; }
+    });
   }
-
-  function move(mx, my) {
-    if (!active) return;
-    const dx = mx - mx0, dy = my - my0;
-    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) didMove = true;
-    if (!didMove) return;
-    const w = window.innerWidth, h = window.innerHeight;
-    wrap.style.left = Math.max(0, Math.min(w - 60, ex0 + dx)) + 'px';
-    wrap.style.top  = Math.max(0, Math.min(h - 60, ey0 + dy)) + 'px';
-  }
-
-  function end() {
-    if (!active) return;
-    active = false;
-    wrap.style.transition = '';
-    document.body.style.userSelect = '';
-    try {
-      localStorage.setItem('berni-pos', JSON.stringify({
-        x: parseInt(wrap.style.left),
-        y: parseInt(wrap.style.top)
-      }));
-    } catch(e) {}
-  }
-
-  // Maus
-  btn.addEventListener('mousedown',  e => { e.preventDefault(); start(e.clientX, e.clientY); });
-  document.addEventListener('mousemove', e => move(e.clientX, e.clientY));
-  document.addEventListener('mouseup',   () => end());
-
-  // Touch
-  btn.addEventListener('touchstart', e => {
-    const t = e.touches[0]; start(t.clientX, t.clientY);
-  }, {passive:true});
-  btn.addEventListener('touchmove', e => {
-    const t = e.touches[0]; move(t.clientX, t.clientY);
-    if (didMove) e.preventDefault();
-  }, {passive:false});
-  btn.addEventListener('touchend', () => end());
-
-  // Klick nur wenn nicht gezogen
-  btn.addEventListener('click', e => {
-    if (didMove) { didMove = false; e.stopImmediatePropagation(); e.preventDefault(); }
-  }, true);
 }
 
-setTimeout(initBerniDrag, 600);
+setTimeout(initBerniDrag, 500);
 
 </script>
 
@@ -8222,13 +8206,14 @@ setTimeout(initBerniDrag, 600);
 <!-- ══ GEW-ASSISTENT ══ -->
 <div class="gew-assistant" id="gewAssistant">
   <div class="ga-panel" id="ga-panel">
-    <div class="ga-header">
-      <div class="ga-avatar">🏗</div>
+    <div class="ga-header" id="ga-drag-handle" style="cursor:grab;touch-action:none" title="Ziehen zum Verschieben">
+      <div class="ga-avatar">👷</div>
       <div>
-        <div class="ga-name">GewPRO Assistent</div>
-        <div class="ga-status" id="ga-status">● Analysiert aktuelle Situation…</div>
+        <div class="ga-name">Berni — Bauleiter-Kollege</div>
+        <div class="ga-status" id="ga-status">● Schaut sich die Lage an…</div>
       </div>
-      <button onclick="closeAssistant()" style="margin-left:auto;background:none;border:none;color:var(--t3);font-size:16px;cursor:pointer;padding:2px 6px">×</button>
+      <span style="font-size:11px;color:var(--t3);margin-left:4px" title="Verschieben">⠿</span>
+      <button onclick="closeAssistant()" style="margin-left:8px;background:none;border:none;color:var(--t3);font-size:16px;cursor:pointer;padding:2px 6px">×</button>
     </div>
     <div class="ga-context">
       <div class="ga-ctx-dot"></div>
