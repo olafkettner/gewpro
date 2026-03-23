@@ -7613,103 +7613,84 @@ function switchNav(view, btn) {
 
 
 // ════════════════════════════════════════════════════════
-// BERNI — Frei verschiebbar (Drag & Drop, Touch + Mouse)
+// BERNI — Frei verschiebbar
 // ════════════════════════════════════════════════════════
 function initBerniDrag() {
-  const el = document.querySelector('.gew-assistant');
-  const trigger = document.getElementById('ga-trigger');
-  if (!el || !trigger) return;
+  const wrap = document.querySelector('.gew-assistant');
+  const btn  = document.getElementById('ga-trigger');
+  if (!wrap || !btn) return;
 
-  // Load saved position
+  // Auf left/top umstellen für einfacheres Drag
+  const vw = window.innerWidth, vh = window.innerHeight;
+  wrap.style.right  = 'auto';
+  wrap.style.bottom = 'auto';
+  wrap.style.left   = (vw - 80) + 'px';
+  wrap.style.top    = (vh - 80) + 'px';
+
+  // Gespeicherte Position laden
   try {
-    const saved = JSON.parse(localStorage.getItem('gewpro-berni-pos') || '{}');
-    if (saved.right !== undefined) {
-      el.style.right  = saved.right + 'px';
-      el.style.bottom = saved.bottom + 'px';
-      el.style.left   = 'auto';
-      el.style.top    = 'auto';
+    const p = JSON.parse(localStorage.getItem('berni-pos') || '{}');
+    if (p.x !== undefined) {
+      wrap.style.left = Math.min(p.x, vw-60) + 'px';
+      wrap.style.top  = Math.min(p.y, vh-60) + 'px';
     }
   } catch(e) {}
 
-  let dragging = false;
-  let startX, startY, startRight, startBottom;
-  let moved = false;
+  let mx0, my0, ex0, ey0, active = false, didMove = false;
 
-  function getRight()  { return parseInt(el.style.right)  || 28; }
-  function getBottom() { return parseInt(el.style.bottom) || 28; }
-
-  function onStart(cx, cy) {
-    dragging = true; moved = false;
-    startX = cx; startY = cy;
-    startRight  = getRight();
-    startBottom = getBottom();
-    trigger.style.transition = 'none';
+  function start(mx, my) {
+    const r = wrap.getBoundingClientRect();
+    mx0 = mx; my0 = my; ex0 = r.left; ey0 = r.top;
+    active = true; didMove = false;
+    wrap.style.transition = 'none';
     document.body.style.userSelect = 'none';
   }
 
-  function onMove(cx, cy) {
-    if (!dragging) return;
-    const dx = cx - startX;
-    const dy = cy - startY;
-    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
-    if (!moved) return;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    // right = startRight - dx (moving right increases right)
-    let newRight  = Math.max(8, Math.min(vw - 60,  startRight  - dx));
-    let newBottom = Math.max(8, Math.min(vh - 60,  startBottom + dy));
-    el.style.right  = newRight  + 'px';
-    el.style.bottom = newBottom + 'px';
-    el.style.left = 'auto';
-    el.style.top  = 'auto';
+  function move(mx, my) {
+    if (!active) return;
+    const dx = mx - mx0, dy = my - my0;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) didMove = true;
+    if (!didMove) return;
+    const w = window.innerWidth, h = window.innerHeight;
+    wrap.style.left = Math.max(0, Math.min(w - 60, ex0 + dx)) + 'px';
+    wrap.style.top  = Math.max(0, Math.min(h - 60, ey0 + dy)) + 'px';
   }
 
-  function onEnd() {
-    if (!dragging) return;
-    dragging = false;
-    trigger.style.transition = '';
+  function end() {
+    if (!active) return;
+    active = false;
+    wrap.style.transition = '';
     document.body.style.userSelect = '';
     try {
-      localStorage.setItem('gewpro-berni-pos', JSON.stringify({
-        right:  getRight(),
-        bottom: getBottom()
+      localStorage.setItem('berni-pos', JSON.stringify({
+        x: parseInt(wrap.style.left),
+        y: parseInt(wrap.style.top)
       }));
     } catch(e) {}
   }
 
-  // Mouse
-  trigger.addEventListener('mousedown', e => {
-    e.preventDefault();
-    onStart(e.clientX, e.clientY);
-  });
-  document.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
-  document.addEventListener('mouseup', e => {
-    if (moved) e.stopImmediatePropagation();
-    onEnd();
-  });
+  // Maus
+  btn.addEventListener('mousedown',  e => { e.preventDefault(); start(e.clientX, e.clientY); });
+  document.addEventListener('mousemove', e => move(e.clientX, e.clientY));
+  document.addEventListener('mouseup',   () => end());
 
-  // Touch (iPad / Android)
-  trigger.addEventListener('touchstart', e => {
-    const t = e.touches[0];
-    onStart(t.clientX, t.clientY);
-  }, { passive: true });
-  trigger.addEventListener('touchmove', e => {
-    const t = e.touches[0];
-    onMove(t.clientX, t.clientY);
-  }, { passive: true });
-  trigger.addEventListener('touchend', e => {
-    onEnd();
-    if (moved) e.preventDefault();
-  });
+  // Touch
+  btn.addEventListener('touchstart', e => {
+    const t = e.touches[0]; start(t.clientX, t.clientY);
+  }, {passive:true});
+  btn.addEventListener('touchmove', e => {
+    const t = e.touches[0]; move(t.clientX, t.clientY);
+    if (didMove) e.preventDefault();
+  }, {passive:false});
+  btn.addEventListener('touchend', () => end());
 
-  // Nur Klick wenn NICHT gezogen
-  trigger.addEventListener('click', e => {
-    if (moved) { moved = false; e.stopImmediatePropagation(); }
+  // Klick nur wenn nicht gezogen
+  btn.addEventListener('click', e => {
+    if (didMove) { didMove = false; e.stopImmediatePropagation(); e.preventDefault(); }
   }, true);
 }
 
-// Init nach DOM-Aufbau
-setTimeout(initBerniDrag, 500);
+setTimeout(initBerniDrag, 600);
 
 </script>
 
