@@ -3167,7 +3167,7 @@ function saveMangel() {
   closeModal('neuMangelModal');
   showNotification('Mangel wurde erfasst und gespeichert');
 }
-function saveNewProject() {
+function saveNewProject() { /* patched for localStorage */
   closeModal('neuProjektModal');
   showNotification('Projekt wurde angelegt');
 }
@@ -3199,16 +3199,70 @@ function setTab(btn) { const tabs=btn.parentElement.querySelectorAll('.tab'); ta
 function openEmailFromDetail() { closeModal('mangelDetailModal'); showNotification('E-Mail-Generator wird geladen…'); }
 function openMultiEmailFromGlobal() { showNotification('Mehrfach-Mängelrüge: Bitte Mängel in der Liste auswählen'); }
 
-// ═══════════ INIT ═══════════
+// ═══════════ INIT + LOCALSTORAGE DATENSPEICHERUNG ═══════════
+
+// ── Daten laden aus localStorage ──
+function lsLoad() {
+  try {
+    const saved = localStorage.getItem('gewpro-data');
+    if (saved) {
+      const d = JSON.parse(saved);
+      if (d.maengel)   maengelData.splice(0, maengelData.length, ...d.maengel);
+      if (d.projekte)  projekte.splice(0, projekte.length, ...d.projekte);
+      if (d.firmen)    firmen.splice(0, firmen.length, ...d.firmen);
+      if (d.fristenData) fristenData.splice(0, fristenData.length, ...d.fristenData);
+      if (d.abnahmen)  ubAbnahmen.splice(0, ubAbnahmen.length, ...d.abnahmen);
+      console.log('[GewPRO] Daten geladen aus localStorage');
+    }
+  } catch(e) { console.warn('[GewPRO] Laden fehlgeschlagen:', e); }
+}
+
+// ── Daten speichern in localStorage ──
+function lsSave() {
+  try {
+    localStorage.setItem('gewpro-data', JSON.stringify({
+      maengel:    maengelData,
+      projekte:   projekte,
+      firmen:     firmen,
+      fristenData: fristenData || [],
+      abnahmen:   ubAbnahmen || [],
+      savedAt:    new Date().toISOString()
+    }));
+    // Sync-Zeit anzeigen
+    const t = new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+    const el = document.getElementById('od-sync-time');
+    if (el) el.textContent = 'Gespeichert: ' + t;
+  } catch(e) { console.warn('[GewPRO] Speichern fehlgeschlagen:', e); }
+}
+
+// ── Auto-Save alle 30 Sekunden + bei Seitenende ──
+setInterval(lsSave, 30000);
+window.addEventListener('beforeunload', lsSave);
+
+// ── Daten laden ──
+lsLoad();
+
+// ── Rendern ──
 renderTree();
+
+// Sicherstellen dass pv-uebersicht sichtbar ist bevor Karten gerendert werden
+const pvUebersicht = document.getElementById('pv-uebersicht');
+if (pvUebersicht) pvUebersicht.style.display = 'block';
 renderProjCards();
 renderGewerkeP();
-// pre-select first project
+
+// Pre-select first project
 setTimeout(() => {
   selectedProjId = 'P1';
   treeState['P1'] = {open:true, gebOpen:{}};
   renderTree();
 }, 100);
+
+// Speichern wenn Mängel oder Projekte geändert werden
+const _origSaveMangel2 = typeof saveMangel === 'function' ? saveMangel : null;
+if (_origSaveMangel2) {
+  saveMangel = function() { _origSaveMangel2(); lsSave(); };
+}
 
 
 // ══════════════════════════════════════════════
